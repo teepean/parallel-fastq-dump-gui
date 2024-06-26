@@ -1,7 +1,7 @@
 
-parallel-fastq-dump
+parallel-fastq-dump-gui
 ===================
-parallel ``fastq-dump`` wrapper
+parallel ``fastq-dump`` wrapper with a claude.ai created GUI. 
 
 Why & How
 ---------
