@@ -6,10 +6,14 @@ import tempfile
 import subprocess
 import argparse
 import logging
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
+                             QPushButton, QTextEdit, QLabel, QFileDialog, QSpinBox)
+from PyQt5.QtCore import Qt
 
 __version__ = '0.6.7'
 
 logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.DEBUG)
+
 class CustomFormatter(argparse.ArgumentDefaultsHelpFormatter,
                       argparse.RawDescriptionHelpFormatter):
     pass
@@ -21,7 +25,6 @@ Example: parallel-fastq-dump --sra-id SRR2244401 --threads 4 --outdir out/ --spl
 
 parser = argparse.ArgumentParser(description=desc, epilog=epi,
                                  formatter_class=CustomFormatter)
-argparse.ArgumentDefaultsHelpFormatter
 parser.add_argument('-s','--sra-id', help='SRA id', action='append')
 parser.add_argument('-t','--threads', help='number of threads', default=1, type=int)
 parser.add_argument('-O','--outdir', help='output directory', default='.')
@@ -29,7 +32,6 @@ parser.add_argument('-T', '--tmpdir', help='temporary directory', default=None)
 parser.add_argument('-N','--minSpotId', help='Minimum spot id', default=1, type=int)
 parser.add_argument('-X','--maxSpotId', help='Maximum spot id', default=None, type=int)
 parser.add_argument('-V', '--version', help='shows version', action='store_true', default=False)
-
 
 def pfd(args, srr_id, extra_args):
     """
@@ -146,6 +148,100 @@ def is_sra_file(path):
     if 'DRR' in f.upper(): return True
     return False
 
+class DragDropWidget(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setAcceptDrops(True)
+        self.layout = QVBoxLayout()
+        self.setLayout(self.layout)
+
+        self.label = QLabel("Drag and drop SRA accessions here")
+        self.label.setAlignment(Qt.AlignCenter)
+        self.layout.addWidget(self.label)
+
+        self.text_edit = QTextEdit()
+        self.layout.addWidget(self.text_edit)
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasText():
+            event.acceptProposedAction()
+
+    def dropEvent(self, event):
+        text = event.mimeData().text()
+        self.text_edit.append(text)
+
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Parallel FastQ Dump GUI")
+        self.setGeometry(100, 100, 600, 400)
+
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        main_layout = QVBoxLayout(central_widget)
+
+        self.drag_drop_widget = DragDropWidget()
+        main_layout.addWidget(self.drag_drop_widget)
+
+        # Thread count
+        thread_layout = QHBoxLayout()
+        thread_label = QLabel("Number of threads:")
+        self.thread_spinbox = QSpinBox()
+        self.thread_spinbox.setRange(1, 32)
+        self.thread_spinbox.setValue(6)
+        thread_layout.addWidget(thread_label)
+        thread_layout.addWidget(self.thread_spinbox)
+        main_layout.addLayout(thread_layout)
+
+        # Output directory
+        output_layout = QHBoxLayout()
+        self.output_label = QLabel("Output directory: Not set")
+        self.output_dir_button = QPushButton("Set Output Directory")
+        self.output_dir_button.clicked.connect(self.set_output_directory)
+        output_layout.addWidget(self.output_label)
+        output_layout.addWidget(self.output_dir_button)
+        main_layout.addLayout(output_layout)
+
+        # Run button
+        self.run_button = QPushButton("Run")
+        self.run_button.clicked.connect(self.run_parallel_fastq_dump)
+        main_layout.addWidget(self.run_button)
+
+        self.output_dir = None
+
+    def set_output_directory(self):
+        self.output_dir = QFileDialog.getExistingDirectory(self, "Select Output Directory")
+        if self.output_dir:
+            self.output_label.setText(f"Output directory: {self.output_dir}")
+
+    def run_parallel_fastq_dump(self):
+        accessions = self.drag_drop_widget.text_edit.toPlainText().split()
+        if not accessions:
+            print("No accessions provided.")
+            return
+
+        if not self.output_dir:
+            print("Please set an output directory.")
+            return
+
+        args = argparse.Namespace(
+            sra_id=accessions,
+            threads=self.thread_spinbox.value(),
+            outdir=self.output_dir,
+            tmpdir=None,
+            minSpotId=1,
+            maxSpotId=None
+        )
+
+        extra_args = ['--gzip', '--split-files']
+
+        for accession in accessions:
+            try:
+                pfd(args, accession, extra_args)
+                print(f"Successfully processed {accession}")
+            except Exception as e:
+                print(f"Error processing {accession}: {str(e)}")
+
 def main():
     """
     Main interface
@@ -177,6 +273,14 @@ def main():
         parser.print_help()
         sys.exit(1)
 
-if __name__ == '__main__':
-    main()
+def main_gui():
+    app = QApplication(sys.argv)
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec_())
 
+if __name__ == '__main__':
+    if len(sys.argv) > 1:
+        main()  # Run the original command-line version
+    else:
+        main_gui()  # Run the GUI version
