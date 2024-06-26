@@ -3,6 +3,8 @@ parallel-fastq-dump-gui
 ===================
 parallel ``fastq-dump`` wrapper with a claude.ai created GUI. 
 
+The GUI version requires PyQt5
+
 Why & How
 ---------
 NCBI ``fastq-dump`` can be very slow sometimes, even if you have the resources (network, IO, CPU) to go faster, even if you already downloaded the sra file (see the protip below). This tool speeds up the process by dividing the work into multiple threads.
